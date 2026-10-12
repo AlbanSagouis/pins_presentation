@@ -1,0 +1,339 @@
+---
+title: "pins"
+subtitle: "share data across projects"
+author:
+  name: Alban Sagouis
+  affiliation: iDiv, Leipzig
+date: "2026-05-13"
+format:
+  revealjs:
+    theme: [simple, custom.scss]
+    logo: assets/idiv_logo_solo.png
+    footer: "BioSyn Group Meeting · 2026-05-13"
+    embed-resources: true
+    code-line-numbers: true
+    highlight-style: a11y
+    transition: fade
+    slide-number: true
+    progress: true
+engine: knitr
+lang: en-GB
+execute:
+  echo: true
+  eval: false
+  message: false
+  warning: false
+---
+
+## A confession
+
+I first mentioned `pins` to you in 2020.
+
+Then again in 2022.
+
+Almost made a presentation about it in March.
+
+. . .
+
+
+Today we are really using it.
+
+
+## The scenario
+
+You have spent three weeks cleaning a 2 GB fish dataset.
+
+You need it in three places:
+
+- your laptop
+- the iDiv RStudio server
+- EVE cluster
+
+. . .
+
+What do you do?
+
+## What we usually do
+
+```
+local_computer/projects/
+├── paper_1/data/fish_FINAL.csv           # 2.1 GB
+├── paper_2/data/fish_FINAL_v2.csv        # 2.2 GB
+└── paper_3/data/fish_cleaned_NEW.csv     # 2.0 GB
+```
+```
+Rstudio_server/work/
+├── paper_2/data/fish_FINAL_v2.csv           # 2.0 GB
+└── paper_3/data/fish_cleaned_NEW_v2.csv     # 2.3 GB
+```
+
+. . .
+
+```r
+data <- read.csv("/Users/yourname/projects/paper_1/data/fish_FINAL.csv")
+```
+
+Various copies. Five paths. Two systems. Many chances to use the wrong version.
+
+## {background-color="#000643"}
+
+::: {.black-quote}
+"An absolute path is a burden<br>passed on yourself"
+:::
+
+## What `pins` gives you
+
+- **One** canonical copy of your data, with a stable name
+- Works with any R object: data frames, models, lists, vectors
+- Automatic **versioning** — no more `_FINAL_v2`
+- Reads the latest version by default; older versions are always there
+
+## Two concepts
+
+**pin** — any R object, saved to a named location
+
+**board** — the location itself (folder, server, cloud storage)
+
+. . .
+
+```r
+board <- board_local()
+
+pin_write(board = board, x = my_data, name = "fish_survey")
+pin_read(board  = board, name = "fish_survey")
+```
+
+## Different locations for boards
+
+| Location | Good for | Command |
+|---|---|---|
+| inside working directory | personal, single machine, versioning data | `board_local()` |
+| in your dropbox | reusing data between projects | `board_folder("C:/dropbox/invasive_fish_project")` |
+| shared H: drive | rstudio server, team sharing | `board_folder("H:/synthesis/pins_Alban")` |
+| one script | local ↔ EVE | `board_folder("~/pins")` + `rsync` |
+
+## Before & after
+
+:::: {.columns}
+
+::: {.column width="48%"}
+**Before**
+
+```r
+dt <- read.csv(
+  paste0(
+    "/Users/yourname/projects/",
+    "paper_1/data/",
+    "fish_FINAL_v3.csv"
+  )
+)
+# Error on EVE.
+# Error for your colleague.
+# Which version is this again?
+```
+:::
+
+::: {.column width="4%"}
+:::
+
+::: {.column width="48%"}
+**After**
+
+```r
+board <- pins::board_folder(
+  path = GROUP_PINS_PATH
+)
+
+dt <- pins::pin_read(
+  board = board,
+  name  = "fish_survey"
+)
+# Works on your laptop.
+# Works on EVE.
+# Always the latest version.
+```
+:::
+
+::::
+
+## Versioning
+
+Every `pin_write()` creates a new version automatically.
+
+```r
+pins::pin_versions(board = board, name = "fish_survey")
+#> # A tibble: 3 × 3
+#>   version                created             hash
+#>   <chr>                  <dttm>              <chr>
+#> 1 20240315T091233Z-8e4f… 2024-03-15 09:12    8e4f1…
+#> 2 20240820T142211Z-c3a1… 2024-08-20 14:22    c3a10…
+#> 3 20250104T083445Z-f2b9… 2025-01-04 08:34    f2b91…
+```
+
+`pin_read()` loads the latest by default. Pass `version =` to pin a specific one.
+
+## The H: drive and EVE
+
+For **Rstudio server or team sharing**: H: is the same files — just a different path by OS.
+
+```r
+# Windows
+board <- pins::board_folder(path = "H:\synthesis\pins_Alban")
+# Mac
+board <- pins::board_folder(path = "/Volumes/synthesis/pins_Alban")
+```
+
+. . .
+
+We will come back to this with `.Rprofile`
+
+## The H: drive and EVE
+For **EVE**: `pins` stores everything in a plain folder — sync it.
+
+```bash
+# macOS / Linux
+rsync -avz ~/work/pins/ frontend1.eve.ufz.de:~/pins
+
+# Windows — PowerShell (OpenSSH built-in since Windows 10)
+scp -r .\work\pins\ frontend1.eve.ufz.de:~/pins
+```
+
+```r
+# identical code on both machines
+board <- pins::board_folder(path = GROUP_PINS_PATH)
+```
+
+## {background-color="#000643"}
+
+::: {.black-single}
+One board.<br>Any machine.
+:::
+
+## Setup in 3 lines {.center}
+
+```r
+board <- pins::board_local()
+
+pins::pin_write(board = board, x = my_data, name = "my_dataset")
+```
+
+. . .
+
+Reading from any project:
+
+```r
+board <- pins::board_local()
+
+pins::pin_read(board = board, name = "my_dataset")
+```
+
+---
+
+::: {.large .accent}
+Demo
+:::
+
+## Create a board and write a pin {auto-animate=true}
+
+```{r}
+#| label: demo-board
+#| eval: true
+#| message: false
+board <- pins::board_local()
+```
+
+. . .
+
+```{r}
+#| label: demo-write-1
+#| eval: true
+fish_2024 <- data.frame(
+  species   = c("Esox lucius", "Perca fluviatilis", "Abramis brama"),
+  abundance = c(12L, 45L, 8L),
+  site      = rep(x = "Lake Müggelsee", times = 3L)
+)
+
+pins::pin_write(
+  board       = board,
+  x           = fish_2024,
+  name        = "fish_survey",
+  description = "Annual fish survey, Lake Müggelsee, 2024"
+)
+```
+
+## Read it back — from any project {auto-animate=true}
+
+```{r}
+#| label: demo-read
+#| eval: true
+pins::pin_read(board = board, name = "fish_survey")
+```
+
+## Update the data, write a new version
+
+```{r}
+#| label: demo-write-2
+#| eval: true
+fish_2025 <- rbind(
+  fish_2024,
+  data.frame(
+    species   = "Rutilus rutilus",
+    abundance = 31L,
+    site      = "Lake Müggelsee"
+  )
+)
+
+pins::pin_write(
+  board       = board,
+  x           = fish_2025,
+  name        = "fish_survey",
+  description = "Annual fish survey, Lake Müggelsee, 2025 update"
+)
+```
+##  Update the data, write a new version
+
+```{r}
+#| label: demo-versions
+#| eval: true
+pins::pin_versions(board = board, name = "fish_survey")
+```
+
+## When `pins` doesn't help
+
+- Files that must stay in their original format (`.xlsx` with macros, raw rasters)
+- Data too large to load into memory
+- Data that is never shared or reused across projects, not even with paper reviewers
+
+. . .
+
+For those cases: keep the file on H:, document the path in your README,
+and version the cleaning script in git.
+
+## Getting started today
+
+1. `install.packages("pins")`
+2. Create a local board — write one pin from an existing project
+3. If it sticks → move to H: or ~/volume/groups/synthesis for the team
+
+. . .
+
+The only way to know if it helps is to try it in a real project.
+
+## Don't wanna?
+
+Maybe these could be useful:
+
+ - `rsync` in your .Rprofile so that everytime you open R, data is synchronised between your computer and EVE
+ -  use `..` in path to go one level up. If your data is in a different folder in the same parent folder: `read.csv("../external_data_folder/my_data.csv`
+
+
+## Resources
+
+- `pins` documentation: [pins.rstudio.com](https://pins.rstudio.com)
+- Boards for online Google Drive [`pins::board_gdrive()`](https://pins.rstudio.com/reference/board_gdrive.html)
+- Boards Microsoft OneDrive: [`pins::board_ms365()`](https://pins.rstudio.com/reference/board_ms365.html)
+
+::: {.muted}
+Questions?
+:::
+# 

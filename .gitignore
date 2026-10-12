@@ -1,0 +1,11 @@
+.DS_Store
+.claude/
+.Rproj.user/
+.Rhistory
+renv/library/
+renv/local/
+renv/cellar/
+renv/lock/
+renv/python/
+renv/sandbox/
+renv/staging/
